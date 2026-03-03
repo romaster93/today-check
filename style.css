@@ -1,0 +1,310 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #f0f2f5;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.container {
+  width: 100%;
+  max-width: 500px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+  padding: 32px 28px;
+  height: fit-content;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+header h1 {
+  font-size: 1.5rem;
+  color: #1a1a2e;
+  font-weight: 700;
+}
+
+header .subtitle {
+  font-size: 0.9rem;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* 입력 폼 */
+.todo-form, .daily-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.todo-form input, .daily-form input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.todo-form input:focus, .daily-form input:focus {
+  border-color: #4a6cf7;
+}
+
+.todo-form button, .daily-form button {
+  padding: 12px 20px;
+  background: #4a6cf7;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.todo-form button:hover, .daily-form button:hover {
+  background: #3a5ce5;
+}
+
+/* 필터 */
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.filter-btn {
+  flex: 1;
+  padding: 8px 0;
+  background: #f0f2f5;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.filter-btn:hover {
+  background: #e4e6ea;
+}
+
+.filter-btn.active {
+  background: #4a6cf7;
+  color: #fff;
+}
+
+/* 할일 목록 */
+#todo-list, #daily-list {
+  list-style: none;
+  min-height: 40px;
+}
+
+#todo-list li, #daily-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px;
+  border-bottom: 1px solid #f0f2f5;
+  transition: opacity 0.3s, background 0.2s;
+}
+
+#todo-list li:last-child, #daily-list li:last-child {
+  border-bottom: none;
+}
+
+#todo-list li:hover, #daily-list li:hover {
+  background: #fafbfc;
+  border-radius: 8px;
+}
+
+#todo-list li input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #4a6cf7;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#todo-list li .todo-text {
+  flex: 1;
+  font-size: 0.95rem;
+  color: #333;
+  transition: all 0.3s;
+  word-break: break-word;
+}
+
+#todo-list li.completed .todo-text {
+  text-decoration: line-through;
+  color: #bbb;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.delete-btn:hover {
+  color: #e74c3c;
+  background: #fef0f0;
+}
+
+/* 매일 고정 뱃지 */
+.daily-badge {
+  font-size: 0.7rem;
+  background: #e8f0fe;
+  color: #4a6cf7;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.daily-item {
+  border-left: 3px solid #4a6cf7;
+}
+
+/* 빈 상태 메시지 */
+.empty-msg {
+  text-align: center;
+  color: #bbb;
+  font-size: 0.9rem;
+  padding: 24px 0 !important;
+  border-bottom: none !important;
+}
+
+.empty-msg:hover {
+  background: transparent !important;
+}
+
+/* 진행률 */
+.progress {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f2f5;
+}
+
+.progress-text {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #f0f2f5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a6cf7, #6a8cff);
+  border-radius: 4px;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+/* 매일 고정 할일 섹션 */
+.daily-section {
+  margin-top: 24px;
+  border-top: 1px solid #f0f2f5;
+  padding-top: 16px;
+}
+
+.daily-toggle {
+  width: 100%;
+  padding: 12px;
+  background: #f8f9fa;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  font-weight: 500;
+}
+
+.daily-toggle:hover {
+  background: #f0f2f5;
+}
+
+.daily-toggle-icon {
+  margin-right: 8px;
+}
+
+.daily-panel {
+  margin-top: 12px;
+}
+
+.daily-panel.hidden {
+  display: none;
+}
+
+.daily-form button {
+  background: #6c757d;
+}
+
+.daily-form button:hover {
+  background: #5a6268;
+}
+
+.daily-task-text {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.daily-hint {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #aaa;
+  margin-top: 12px;
+}
+
+/* 반응형 */
+@media (max-width: 480px) {
+  body {
+    padding: 20px 12px;
+  }
+
+  .container {
+    padding: 24px 20px;
+    border-radius: 12px;
+  }
+
+  header h1 {
+    font-size: 1.3rem;
+  }
+
+  .todo-form input, .daily-form input {
+    padding: 10px 14px;
+  }
+
+  .todo-form button, .daily-form button {
+    padding: 10px 16px;
+  }
+}

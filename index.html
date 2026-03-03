@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오늘의 할일 체크리스트</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4a6cf7">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 id="today-date"></h1>
+      <p class="subtitle">오늘의 할일 체크리스트</p>
+    </header>
+
+    <form id="todo-form" class="todo-form">
+      <input type="text" id="todo-input" placeholder="할일을 입력하세요..." autocomplete="off">
+      <button type="submit" id="add-btn">추가</button>
+    </form>
+
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">전체</button>
+      <button class="filter-btn" data-filter="active">진행중</button>
+      <button class="filter-btn" data-filter="completed">완료</button>
+    </div>
+
+    <ul id="todo-list"></ul>
+
+    <div id="progress" class="progress">
+      <div class="progress-text">완료: 0/0</div>
+      <div class="progress-bar">
+        <div class="progress-fill"></div>
+      </div>
+    </div>
+
+    <!-- 매일 고정 할일 관리 -->
+    <div class="daily-section">
+      <button id="daily-toggle" class="daily-toggle">
+        <span class="daily-toggle-icon">&#9662;</span>
+        매일 고정 할일 관리
+      </button>
+      <div id="daily-panel" class="daily-panel hidden">
+        <form id="daily-form" class="daily-form">
+          <input type="text" id="daily-input" placeholder="매일 반복할 할일..." autocomplete="off">
+          <button type="submit">등록</button>
+        </form>
+        <ul id="daily-list"></ul>
+        <p class="daily-hint">여기 등록된 할일은 매일 자동으로 체크리스트에 추가됩니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
