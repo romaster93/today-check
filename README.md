@@ -1,22 +1,51 @@
-# Today 할일 체크리스트
+# Today Todo Checklist
 
-오늘의 할일을 관리하는 심플한 웹 체크리스트 앱입니다.
+A daily todo checklist app with GTK system tray integration for Linux.
 
-## 기능
+## Features
 
-- 할일 추가/삭제
-- 완료 체크 토글
-- 전체/진행중/완료 필터링
-- LocalStorage로 데이터 저장
-- 오늘 날짜 표시
-- 진행률 표시
+- **System Tray** - Runs in background with status indicator (completed/total)
+- **Dark Mode** - Full dark theme UI
+- **Monthly Planner** - Calendar grid view with todo preview in each cell
+- **Daily Recurring Tasks** - Register tasks that auto-populate every day
+- **Per-Date Todos** - Manage separate todo lists for each date
+- **Password Lock** - Optional password protection
+- **Offline Support** - Service Worker caching for web version
+- **Auto Launch** - Starts automatically on boot via autostart
+- **Edit/Delete** - Edit button (✎) and delete button (✕) for each todo
 
-## 사용법
+## Requirements
 
-`index.html` 파일을 브라우저에서 열면 바로 사용할 수 있습니다.
+- Python 3
+- GTK 3
+- AyatanaAppIndicator3
 
-## 기술 스택
+```bash
+sudo apt install gir1.2-ayatanaappindicator3-0.1
+```
 
-- HTML
-- CSS
-- Vanilla JavaScript
+## Usage
+
+### Run manually
+
+```bash
+./today-check.sh
+```
+
+### Auto start
+
+The app auto-launches on boot via `~/.config/autostart/today-check.desktop`.
+
+### Desktop shortcut
+
+Double-click the "할일 체크리스트" icon on the desktop.
+
+## Tech Stack
+
+- Python 3 + GTK 3 (tray app)
+- HTML / CSS / Vanilla JavaScript (web version)
+- Service Worker (offline caching)
+
+## Data
+
+All data is stored in `~/.local/share/today-check/data.json`.
