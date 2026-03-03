@@ -68,6 +68,18 @@ def get_todos_for_date(data, date_str):
         data['todos_by_date'][date_str] = todos
         data.setdefault('initialized_dates', []).append(date_str)
         save_data(data)
+    else:
+        # 이미 초기화된 날짜라도, 새로 등록된 매일 할일이 누락됐으면 추가
+        todos = data['todos_by_date'].get(date_str, [])
+        existing_daily = {t['text'] for t in todos if t.get('daily')}
+        added = False
+        for dt in data.get('daily_tasks', []):
+            if dt['text'] not in existing_daily:
+                todos.append({'text': dt['text'], 'completed': False, 'daily': True})
+                added = True
+        if added:
+            data['todos_by_date'][date_str] = todos
+            save_data(data)
     return data['todos_by_date'].get(date_str, [])
 
 
@@ -142,8 +154,9 @@ class TodoTrayApp:
         self.progress_bar = None
         self.input_entry = None
 
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icon.svg')
         self.indicator = AyatanaAppIndicator3.Indicator.new(
-            'today-check', 'task-due',
+            'today-check', icon_path,
             AyatanaAppIndicator3.IndicatorCategory.APPLICATION_STATUS
         )
         self.indicator.set_status(AyatanaAppIndicator3.IndicatorStatus.ACTIVE)
@@ -217,7 +230,11 @@ class TodoTrayApp:
         self.window = Gtk.Window(title='오늘의 할일 체크리스트')
         self.window.set_default_size(WIDTH_NORMAL, WINDOW_HEIGHT)
         self.window.set_position(Gtk.WindowPosition.CENTER)
-        self.window.set_icon_name('task-due')
+        icon_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icon-48.png')
+        if os.path.exists(icon_file):
+            self.window.set_icon_from_file(icon_file)
+        else:
+            self.window.set_icon_name('task-due')
         self.window.connect('delete-event', self.on_window_close)
 
         css = Gtk.CssProvider()
@@ -776,9 +793,17 @@ class TodoTrayApp:
         if not text:
             return
         self.data['daily_tasks'].append({'text': text})
+        # 오늘 할일 목록에도 즉시 추가
+        today = get_today()
+        today_todos = self.data['todos_by_date'].get(today, [])
+        today_todos.append({'text': text, 'completed': False, 'daily': True})
+        self.data['todos_by_date'][today] = today_todos
         save_data(self.data)
         self.daily_entry.set_text('')
         self.refresh_daily_list()
+        self.refresh_todo_list()
+        self.update_indicator_label()
+        self.build_tray_menu()
 
     def on_delete_daily(self, widget, idx):
         if 0 <= idx < len(self.data['daily_tasks']):
