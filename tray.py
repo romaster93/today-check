@@ -277,6 +277,10 @@ class TodoTrayApp:
             .cal-todo-done { font-size: 11px; color: #555; }
             .cal-cell-sun .cal-date-num { color: #e74c3c; }
             .cal-cell-sat .cal-date-num { color: #4a90d9; }
+            .overdue-date-label { font-size: 13px; font-weight: bold; color: #e8a838; margin-top: 4px; }
+            .overdue-badge { font-size: 11px; color: #e8a838; }
+            .add-today-btn { color: #6a8cff; font-size: 12px; }
+            .add-today-btn:hover { color: #4a6cf7; }
         """)
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
@@ -361,6 +365,21 @@ class TodoTrayApp:
         daily_card.pack_start(hint, False, False, 4)
 
         left_box.pack_start(daily_card, False, False, 0)
+
+        # 아직 못한 일 카드
+        overdue_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        overdue_card.get_style_context().add_class('card')
+        ot = Gtk.Label(label='아직 못한 일')
+        ot.get_style_context().add_class('section-title')
+        ot.set_halign(Gtk.Align.START)
+        overdue_card.pack_start(ot, False, False, 0)
+        self.overdue_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        overdue_card.pack_start(self.overdue_box, False, False, 0)
+        overdue_hint = Gtk.Label(label='최근 2일간 완료하지 못한 할일이 표시됩니다.')
+        overdue_hint.get_style_context().add_class('hint-label')
+        overdue_card.pack_start(overdue_hint, False, False, 4)
+        left_box.pack_start(overdue_card, False, False, 0)
+
         left_scroll.add(left_box)
         hbox.pack_start(left_scroll, False, False, 0)
 
@@ -622,6 +641,101 @@ class TodoTrayApp:
             dlg.destroy()
             return
 
+    # --- 미완료 할일 ---
+
+    def get_overdue_todos(self):
+        today = date.today()
+        result = []
+        for days_ago in [1, 2]:
+            d = today - timedelta(days=days_ago)
+            date_str = d.isoformat()
+            todos = self.data['todos_by_date'].get(date_str, [])
+            for idx, todo in enumerate(todos):
+                if not todo['completed']:
+                    result.append((date_str, idx, todo))
+        return result
+
+    def refresh_overdue_list(self):
+        for child in self.overdue_box.get_children():
+            self.overdue_box.remove(child)
+
+        overdue = self.get_overdue_todos()
+        if not overdue:
+            empty = Gtk.Label(label='최근 미완료 할일이 없습니다')
+            empty.get_style_context().add_class('hint-label')
+            empty.set_margin_top(8)
+            empty.set_margin_bottom(8)
+            self.overdue_box.pack_start(empty, False, False, 0)
+        else:
+            grouped = {}
+            for date_str, idx, todo in overdue:
+                grouped.setdefault(date_str, []).append((idx, todo))
+            for date_str in sorted(grouped.keys(), reverse=True):
+                d = date.fromisoformat(date_str)
+                days_kr = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
+                date_lbl = Gtk.Label(label=f'{d.month}월 {d.day}일 {days_kr[d.weekday()]}')
+                date_lbl.get_style_context().add_class('overdue-date-label')
+                date_lbl.set_halign(Gtk.Align.START)
+                self.overdue_box.pack_start(date_lbl, False, False, 2)
+
+                for idx, todo in grouped[date_str]:
+                    row = Gtk.Box(spacing=6)
+                    row.set_margin_top(2)
+                    row.set_margin_bottom(2)
+                    check = Gtk.CheckButton()
+                    check.set_active(False)
+                    check.connect('toggled', self.on_toggle_overdue, date_str, idx)
+                    row.pack_start(check, False, False, 0)
+                    label = Gtk.Label(label=todo['text'])
+                    label.set_halign(Gtk.Align.START)
+                    label.set_hexpand(True)
+                    label.set_line_wrap(True)
+                    label.get_style_context().add_class('todo-text')
+                    row.pack_start(label, True, True, 0)
+                    if todo.get('daily'):
+                        badge = Gtk.Label(label='매일')
+                        badge.get_style_context().add_class('overdue-badge')
+                        row.pack_start(badge, False, False, 0)
+                    add_btn = Gtk.Button(label='오늘 추가')
+                    add_btn.get_style_context().add_class('add-today-btn')
+                    add_btn.set_relief(Gtk.ReliefStyle.NONE)
+                    add_btn.set_tooltip_text('오늘 할일로 추가')
+                    add_btn.connect('clicked', self.on_add_overdue_to_today, date_str, idx)
+                    row.pack_start(add_btn, False, False, 0)
+                    self.overdue_box.pack_start(row, False, False, 0)
+
+        self.overdue_box.show_all()
+
+    def on_add_overdue_to_today(self, widget, date_str, idx):
+        todos = self.data['todos_by_date'].get(date_str, [])
+        if 0 <= idx < len(todos):
+            todo = todos[idx]
+            today = get_today()
+            today_todos = self.data['todos_by_date'].setdefault(today, [])
+            # 중복 방지: 같은 텍스트가 이미 오늘에 있으면 추가하지 않음
+            if any(t['text'] == todo['text'] for t in today_todos):
+                return
+            today_todos.append({'text': todo['text'], 'completed': False, 'daily': False})
+            # 원래 날짜에서 완료 처리
+            todo['completed'] = True
+            save_data(self.data)
+            self.refresh_todo_list()
+            self.update_indicator_label()
+            self.build_tray_menu()
+            if self.cal_visible:
+                self.build_calendar_grid()
+
+    def on_toggle_overdue(self, widget, date_str, idx):
+        todos = self.data['todos_by_date'].get(date_str, [])
+        if 0 <= idx < len(todos):
+            todos[idx]['completed'] = True
+            save_data(self.data)
+            self.refresh_overdue_list()
+            self.update_indicator_label()
+            self.build_tray_menu()
+            if self.cal_visible:
+                self.build_calendar_grid()
+
     # --- 새로고침 ---
 
     def refresh_todo_list(self):
@@ -685,6 +799,7 @@ class TodoTrayApp:
         self.progress_label.set_text(f'완료: {done}/{total}')
         self.progress_bar.set_fraction(done / total if total > 0 else 0)
         self.todo_box.show_all()
+        self.refresh_overdue_list()
 
     def refresh_daily_list(self):
         for child in self.daily_box.get_children():
@@ -816,6 +931,7 @@ class TodoTrayApp:
             return
         self.refresh_todo_list()
         self.refresh_daily_list()
+        self.refresh_overdue_list()
         if self.cal_visible:
             self.build_calendar_grid()
         self.window.show_all()
