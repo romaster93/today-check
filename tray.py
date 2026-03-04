@@ -692,6 +692,8 @@ class TodoTrayApp:
                     label.set_halign(Gtk.Align.START)
                     label.set_hexpand(True)
                     label.set_line_wrap(True)
+                    label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+                    label.set_size_request(260, -1)
                     label.get_style_context().add_class('todo-text')
                     row.pack_start(label, True, True, 0)
                     if todo.get('daily'):
@@ -768,6 +770,8 @@ class TodoTrayApp:
                 label.set_halign(Gtk.Align.START)
                 label.set_hexpand(True)
                 label.set_line_wrap(True)
+                label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+                label.set_size_request(260, -1)
                 label.get_style_context().add_class('todo-text')
                 if todo['completed']:
                     label.set_markup(f'<s><span foreground="#666">{GLib.markup_escape_text(todo["text"])}</span></s>')
@@ -831,8 +835,13 @@ class TodoTrayApp:
 
     # --- 이벤트 핸들러 ---
 
+    def _clear_entry(self, entry):
+        entry.reset_im_context()
+        entry.set_text('')
+        return False
+
     def on_entry_key_press(self, widget, event):
-        if event.keyval == Gdk.KEY_space:
+        if event.keyval == Gdk.KEY_space or event.keyval == Gdk.KEY_period:
             widget.reset_im_context()
         return False
 
@@ -882,7 +891,7 @@ class TodoTrayApp:
         todos = self.data['todos_by_date'].setdefault(self.selected_date, [])
         todos.append({'text': text, 'completed': False, 'daily': False})
         save_data(self.data)
-        self.input_entry.set_text('')
+        GLib.idle_add(self._clear_entry, self.input_entry)
         self.refresh_todo_list()
         self.update_indicator_label()
         self.build_tray_menu()
@@ -922,7 +931,7 @@ class TodoTrayApp:
         today_todos.append({'text': text, 'completed': False, 'daily': True})
         self.data['todos_by_date'][today] = today_todos
         save_data(self.data)
-        self.daily_entry.set_text('')
+        GLib.idle_add(self._clear_entry, self.daily_entry)
         self.refresh_daily_list()
         self.refresh_todo_list()
         self.update_indicator_label()
