@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Today 할일 체크리스트 - 시스템 트레이 앱 (월간 플래너 + 비밀번호)"""
+"""Today 할일 체크리스트 - 시스템 트레이 앱 (월간 플래너 + 비밀번호 + 영양제)"""
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -18,6 +18,18 @@ DATA_FILE = os.path.join(DATA_DIR, 'data.json')
 WIDTH_NORMAL = 420
 WIDTH_WITH_CAL = 1280
 WINDOW_HEIGHT = 720
+
+SLOT_LABELS = {
+    'empty': '공복',
+    'morning-before': '아침 식전',
+    'morning-after': '아침 식후',
+    'lunch-before': '점심 식전',
+    'lunch-after': '점심 식후',
+    'dinner-before': '저녁 식전',
+    'dinner-after': '저녁 식후',
+}
+
+SLOT_ORDER = ['empty', 'morning-before', 'morning-after', 'lunch-before', 'lunch-after', 'dinner-before', 'dinner-after']
 
 # --- 데이터 ---
 
@@ -53,6 +65,8 @@ def load_data():
     data.setdefault('daily_tasks', [])
     data.setdefault('initialized_dates', [])
     data.setdefault('password', '')
+    data.setdefault('supplements', [])
+    data.setdefault('supplement_checks', {})
     return data
 
 def save_data(data):
@@ -69,7 +83,6 @@ def get_todos_for_date(data, date_str):
         data.setdefault('initialized_dates', []).append(date_str)
         save_data(data)
     else:
-        # 이미 초기화된 날짜라도, 새로 등록된 매일 할일이 누락됐으면 추가
         todos = data['todos_by_date'].get(date_str, [])
         existing_daily = {t['text'] for t in todos if t.get('daily')}
         added = False
@@ -139,6 +152,9 @@ class TodoTrayApp:
         self.data = load_data()
         self.selected_date = get_today()
         self.cal_visible = False
+        self.supp_visible = False
+        self.supp_filter = 'all'
+        self.supp_filter_btns = {}
         self.cal_year = date.today().year
         self.cal_month = date.today().month
         get_todos_for_date(self.data, self.selected_date)
@@ -153,6 +169,17 @@ class TodoTrayApp:
         self.progress_label = None
         self.progress_bar = None
         self.input_entry = None
+        self.todo_container = None
+        self.supp_container = None
+        self.supp_check_box = None
+        self.supp_list_box = None
+        self.supp_progress_label = None
+        self.supp_progress_bar = None
+        self.supp_name_entry = None
+        self.supp_slot_combo = None
+        self.supp_toggle_btn = None
+        self.supp_missed_card = None
+        self.supp_missed_box = None
 
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icon.svg')
         self.indicator = AyatanaAppIndicator3.Indicator.new(
@@ -174,7 +201,13 @@ class TodoTrayApp:
     def update_indicator_label(self):
         todos = self.get_today_todos()
         done = sum(1 for t in todos if t['completed'])
-        self.indicator.set_label(f' {done}/{len(todos)}', '')
+        supps = self.data.get('supplements', [])
+        checks = self.data['supplement_checks'].get(get_today(), [])
+        supp_done = sum(1 for s in supps if s['id'] in checks)
+        if supps:
+            self.indicator.set_label(f' \u2713{done}/{len(todos)}  \U0001F48A{supp_done}/{len(supps)}', '')
+        else:
+            self.indicator.set_label(f' {done}/{len(todos)}', '')
 
     # --- 트레이 메뉴 ---
 
@@ -205,6 +238,24 @@ class TodoTrayApp:
         menu.append(p)
         menu.append(Gtk.SeparatorMenuItem())
 
+        # 영양제 섹션
+        supplements = self.data.get('supplements', [])
+        if supplements:
+            menu.append(Gtk.SeparatorMenuItem())
+            today_checks = self.data['supplement_checks'].get(get_today(), [])
+            supp_done = sum(1 for s in supplements if s['id'] in today_checks)
+            sh = Gtk.MenuItem(label=f'  \U0001F48A 복용: {supp_done}/{len(supplements)}')
+            sh.set_sensitive(False)
+            menu.append(sh)
+            sorted_supps = sorted(supplements, key=lambda s: SLOT_ORDER.index(s['slot']) if s['slot'] in SLOT_ORDER else 99)
+            for supp in sorted_supps:
+                ck = '\u2713' if supp['id'] in today_checks else '\u25CB'
+                slot_label = SLOT_LABELS.get(supp['slot'], '')
+                item = Gtk.MenuItem(label=f'  {ck}  {supp["name"]}  ({slot_label})')
+                item.connect('activate', self.on_tray_supp_toggle, supp['id'])
+                menu.append(item)
+
+        menu.append(Gtk.SeparatorMenuItem())
         for label, cb in [('열기', self.on_open_window), ('비밀번호 설정', self.on_change_password), ('종료', self.on_quit)]:
             item = Gtk.MenuItem(label=label)
             item.connect('activate', cb)
@@ -281,6 +332,20 @@ class TodoTrayApp:
             .overdue-badge { font-size: 11px; color: #e8a838; }
             .add-today-btn { color: #6a8cff; font-size: 12px; }
             .add-today-btn:hover { color: #4a6cf7; }
+            .supp-toggle-active { background: #10b981; color: white; border-radius: 8px; padding: 6px 14px; font-size: 13px; }
+            .supp-group-header { font-size: 13px; font-weight: bold; color: #34d399; }
+            .supp-slot-badge { font-size: 11px; color: #10b981; }
+            button.supp-add-btn { background: #10b981; color: white; border-radius: 8px; padding: 8px 16px; }
+            button.supp-add-btn:hover { background: #059669; }
+            .supp-progress-text { font-size: 13px; color: #10b981; }
+            combobox button { background: #1e1e36; color: #ddd; border: 1px solid #3a3a5c; border-radius: 8px; padding: 6px 10px; }
+            .supp-filter-btn { background: #3a3a5c; color: #aaa; border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+            .supp-filter-btn:hover { background: #2a4a3a; color: #ddd; }
+            .supp-filter-btn-active { background: #10b981; color: white; border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+            .supp-missed-title { font-size: 13px; font-weight: bold; color: #e8a838; }
+            .supp-missed-msg { font-size: 12px; color: #e8a838; }
+            .supp-taken-btn { color: #10b981; font-size: 12px; }
+            .supp-taken-btn:hover { color: #059669; }
         """)
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
@@ -288,7 +353,7 @@ class TodoTrayApp:
 
         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
 
-        # === 왼쪽: 할일 ===
+        # === 왼쪽 패널 ===
         left_scroll = Gtk.ScrolledWindow()
         left_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         left_scroll.set_size_request(WIDTH_NORMAL, -1)
@@ -299,9 +364,9 @@ class TodoTrayApp:
         left_box.set_margin_start(20)
         left_box.set_margin_end(20)
 
-        # 할일 카드
-        todo_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        todo_card.get_style_context().add_class('card')
+        # 헤더 카드 (항상 표시)
+        header_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        header_card.get_style_context().add_class('card')
 
         header_row = Gtk.Box(spacing=8)
         self.date_label = Gtk.Label()
@@ -309,11 +374,26 @@ class TodoTrayApp:
         self.date_label.set_halign(Gtk.Align.START)
         header_row.pack_start(self.date_label, True, True, 0)
 
+        self.supp_toggle_btn = Gtk.Button(label='\U0001F48A 영양제')
+        self.supp_toggle_btn.get_style_context().add_class('cal-toggle')
+        self.supp_toggle_btn.connect('clicked', self.on_toggle_supplement_view)
+        header_row.pack_start(self.supp_toggle_btn, False, False, 0)
+
         self.cal_toggle_btn = Gtk.Button(label='\U0001F4C5 달력')
         self.cal_toggle_btn.get_style_context().add_class('cal-toggle')
         self.cal_toggle_btn.connect('clicked', self.on_toggle_calendar)
         header_row.pack_start(self.cal_toggle_btn, False, False, 0)
-        todo_card.pack_start(header_row, False, False, 0)
+
+        header_card.pack_start(header_row, False, False, 0)
+        left_box.pack_start(header_card, False, False, 0)
+
+        # === 할일 컨테이너 ===
+        self.todo_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        self.todo_container.set_hexpand(True)
+
+        # 할일 카드
+        todo_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        todo_card.get_style_context().add_class('card')
 
         input_box = Gtk.Box(spacing=8)
         self.input_entry = Gtk.Entry()
@@ -338,7 +418,7 @@ class TodoTrayApp:
         self.progress_bar.set_size_request(-1, 8)
         todo_card.pack_start(self.progress_bar, False, False, 0)
 
-        left_box.pack_start(todo_card, False, False, 0)
+        self.todo_container.pack_start(todo_card, False, False, 0)
 
         # 매일 고정 할일 카드
         daily_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -366,7 +446,7 @@ class TodoTrayApp:
         hint.get_style_context().add_class('hint-label')
         daily_card.pack_start(hint, False, False, 4)
 
-        left_box.pack_start(daily_card, False, False, 0)
+        self.todo_container.pack_start(daily_card, False, False, 0)
 
         # 아직 못한 일 카드
         overdue_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -380,7 +460,94 @@ class TodoTrayApp:
         overdue_hint = Gtk.Label(label='최근 2일간 완료하지 못한 할일이 표시됩니다.')
         overdue_hint.get_style_context().add_class('hint-label')
         overdue_card.pack_start(overdue_hint, False, False, 4)
-        left_box.pack_start(overdue_card, False, False, 0)
+        self.todo_container.pack_start(overdue_card, False, False, 0)
+
+        left_box.pack_start(self.todo_container, False, False, 0)
+
+        # === 영양제 컨테이너 (기본 숨김) ===
+        self.supp_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        self.supp_container.set_hexpand(True)
+
+        # 영양제 체크리스트 카드
+        supp_check_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        supp_check_card.get_style_context().add_class('card')
+
+        supp_filter_box = Gtk.Box(spacing=6)
+        supp_filter_box.set_halign(Gtk.Align.CENTER)
+        for label, fval in [('전체', 'all'), ('공복', 'empty'), ('아침', 'morning'), ('점심', 'lunch'), ('저녁', 'dinner')]:
+            btn = Gtk.Button(label=label)
+            if fval == 'all':
+                btn.get_style_context().add_class('supp-filter-btn-active')
+            else:
+                btn.get_style_context().add_class('supp-filter-btn')
+            btn.connect('clicked', self.on_supp_filter, fval)
+            supp_filter_box.pack_start(btn, True, True, 0)
+            self.supp_filter_btns[fval] = btn
+        supp_check_card.pack_start(supp_filter_box, False, False, 4)
+
+        self.supp_check_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        supp_check_card.pack_start(self.supp_check_box, False, False, 0)
+
+        supp_check_card.pack_start(Gtk.Separator(), False, False, 4)
+        self.supp_progress_label = Gtk.Label()
+        self.supp_progress_label.get_style_context().add_class('supp-progress-text')
+        supp_check_card.pack_start(self.supp_progress_label, False, False, 0)
+        self.supp_progress_bar = Gtk.ProgressBar()
+        self.supp_progress_bar.set_size_request(-1, 8)
+        supp_check_card.pack_start(self.supp_progress_bar, False, False, 0)
+
+        self.supp_container.pack_start(supp_check_card, False, False, 0)
+
+        # 어제 안 드신 영양제 카드
+        self.supp_missed_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.supp_missed_card.get_style_context().add_class('card')
+        self.supp_missed_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.supp_missed_card.pack_start(self.supp_missed_box, False, False, 0)
+        self.supp_container.pack_start(self.supp_missed_card, False, False, 0)
+
+        # 영양제 관리 카드
+        supp_manage_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        supp_manage_card.get_style_context().add_class('card')
+        st = Gtk.Label(label='영양제 관리')
+        st.get_style_context().add_class('section-title')
+        st.set_halign(Gtk.Align.START)
+        supp_manage_card.pack_start(st, False, False, 0)
+
+        si_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+
+        si_row1 = Gtk.Box(spacing=8)
+        self.supp_name_entry = Gtk.Entry()
+        self.supp_name_entry.set_placeholder_text('영양제 이름...')
+        self.supp_name_entry.connect('activate', self.on_add_supplement)
+        self.supp_name_entry.connect('key-press-event', self.on_entry_key_press)
+        si_row1.pack_start(self.supp_name_entry, True, True, 0)
+        sab = Gtk.Button(label='등록')
+        sab.get_style_context().add_class('supp-add-btn')
+        sab.connect('clicked', self.on_add_supplement)
+        si_row1.pack_start(sab, False, False, 0)
+        si_box.pack_start(si_row1, False, False, 0)
+
+        si_row2 = Gtk.Box(spacing=8)
+        self.supp_slot_combo = Gtk.ComboBoxText()
+        for slot in SLOT_ORDER:
+            self.supp_slot_combo.append(slot, SLOT_LABELS[slot])
+        self.supp_slot_combo.set_active_id('morning-after')
+        si_row2.pack_start(self.supp_slot_combo, True, True, 0)
+        si_box.pack_start(si_row2, False, False, 0)
+
+        supp_manage_card.pack_start(si_box, False, False, 0)
+
+        self.supp_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        supp_manage_card.pack_start(self.supp_list_box, False, False, 0)
+        supp_hint = Gtk.Label(label='등록된 영양제는 매일 체크리스트에 표시됩니다.')
+        supp_hint.get_style_context().add_class('hint-label')
+        supp_manage_card.pack_start(supp_hint, False, False, 4)
+
+        self.supp_container.pack_start(supp_manage_card, False, False, 0)
+
+        self.supp_container.set_no_show_all(True)
+        self.supp_container.hide()
+        left_box.pack_start(self.supp_container, False, False, 0)
 
         left_scroll.add(left_box)
         hbox.pack_start(left_scroll, False, False, 0)
@@ -433,11 +600,13 @@ class TodoTrayApp:
 
         self.refresh_todo_list()
         self.refresh_daily_list()
+        self.refresh_supp_checklist()
+        self.refresh_supp_list()
+        self.refresh_supp_missed()
 
     # --- 월간 플래너 달력 ---
 
     def build_calendar_grid(self):
-        # 기존 그리드 제거
         for child in self.cal_grid_container.get_children():
             self.cal_grid_container.remove(child)
 
@@ -448,7 +617,6 @@ class TodoTrayApp:
         grid.set_row_spacing(4)
         grid.set_column_spacing(4)
 
-        # 요일 헤더
         day_names = ['월', '화', '수', '목', '금', '토', '일']
         for col, name in enumerate(day_names):
             lbl = Gtk.Label(label=name)
@@ -459,11 +627,9 @@ class TodoTrayApp:
                 lbl.set_markup(f'<span foreground="#4a90d9">{name}</span>')
             grid.attach(lbl, col, 0, 1, 1)
 
-        # 날짜 셀 채우기
         first_weekday, days_in_month = cal_mod.monthrange(self.cal_year, self.cal_month)
         today_str = get_today()
 
-        # 이전 달 날짜
         if self.cal_month == 1:
             prev_year, prev_month = self.cal_year - 1, 12
         else:
@@ -471,16 +637,13 @@ class TodoTrayApp:
         _, prev_days = cal_mod.monthrange(prev_year, prev_month)
 
         cells = []
-        # 이전 달
         for i in range(first_weekday):
             d = prev_days - first_weekday + 1 + i
             ds = f'{prev_year}-{prev_month:02d}-{d:02d}'
             cells.append((d, ds, 'other'))
-        # 이번 달
         for d in range(1, days_in_month + 1):
             ds = f'{self.cal_year}-{self.cal_month:02d}-{d:02d}'
             cells.append((d, ds, 'current'))
-        # 다음 달
         remaining = 7 - (len(cells) % 7)
         if remaining < 7:
             if self.cal_month == 12:
@@ -509,7 +672,6 @@ class TodoTrayApp:
             elif col == 5:
                 cell.get_style_context().add_class('cal-cell-sat')
 
-            # 날짜 숫자
             num_lbl = Gtk.Label(label=str(day_num))
             num_lbl.set_halign(Gtk.Align.START)
             num_lbl.get_style_context().add_class('cal-date-num')
@@ -521,29 +683,49 @@ class TodoTrayApp:
                 num_lbl.get_style_context().add_class('cal-date-selected')
             cell.pack_start(num_lbl, False, False, 0)
 
-            # 할일 미리보기 (최대 4개)
-            todos = self.data['todos_by_date'].get(date_str, [])
-            for t in todos[:4]:
-                text = t['text']
-                preview = Gtk.Label(label=text)
-                preview.set_halign(Gtk.Align.START)
-                preview.set_ellipsize(Pango.EllipsizeMode.END)
-                preview.set_max_width_chars(24)
-                if t['completed']:
-                    preview.get_style_context().add_class('cal-todo-done')
-                    esc = GLib.markup_escape_text(text)
-                    preview.set_markup(f'<s><span foreground="#555">{esc}</span></s>')
-                else:
-                    preview.get_style_context().add_class('cal-todo-preview')
-                cell.pack_start(preview, False, False, 0)
+            if self.supp_visible:
+                supplements = self.data.get('supplements', [])
+                checks = self.data['supplement_checks'].get(date_str, [])
+                sorted_supps = sorted(supplements, key=lambda s: SLOT_ORDER.index(s['slot']) if s['slot'] in SLOT_ORDER else 99)
+                for supp in sorted_supps[:4]:
+                    text = supp['name']
+                    preview = Gtk.Label(label=text)
+                    preview.set_halign(Gtk.Align.START)
+                    preview.set_ellipsize(Pango.EllipsizeMode.END)
+                    preview.set_max_width_chars(24)
+                    if supp['id'] in checks:
+                        preview.get_style_context().add_class('cal-todo-done')
+                        esc = GLib.markup_escape_text(text)
+                        preview.set_markup(f'<s><span foreground="#555">{esc}</span></s>')
+                    else:
+                        preview.get_style_context().add_class('cal-todo-preview')
+                    cell.pack_start(preview, False, False, 0)
+                if len(sorted_supps) > 4:
+                    more = Gtk.Label(label=f'+{len(sorted_supps)-4}개 더')
+                    more.set_halign(Gtk.Align.START)
+                    more.get_style_context().add_class('hint-label')
+                    cell.pack_start(more, False, False, 0)
+            else:
+                todos = self.data['todos_by_date'].get(date_str, [])
+                for t in todos[:4]:
+                    text = t['text']
+                    preview = Gtk.Label(label=text)
+                    preview.set_halign(Gtk.Align.START)
+                    preview.set_ellipsize(Pango.EllipsizeMode.END)
+                    preview.set_max_width_chars(24)
+                    if t['completed']:
+                        preview.get_style_context().add_class('cal-todo-done')
+                        esc = GLib.markup_escape_text(text)
+                        preview.set_markup(f'<s><span foreground="#555">{esc}</span></s>')
+                    else:
+                        preview.get_style_context().add_class('cal-todo-preview')
+                    cell.pack_start(preview, False, False, 0)
+                if len(todos) > 4:
+                    more = Gtk.Label(label=f'+{len(todos)-4}개 더')
+                    more.set_halign(Gtk.Align.START)
+                    more.get_style_context().add_class('hint-label')
+                    cell.pack_start(more, False, False, 0)
 
-            if len(todos) > 4:
-                more = Gtk.Label(label=f'+{len(todos)-4}개 더')
-                more.set_halign(Gtk.Align.START)
-                more.get_style_context().add_class('hint-label')
-                cell.pack_start(more, False, False, 0)
-
-            # 클릭 이벤트
             event_box = Gtk.EventBox()
             event_box.add(cell)
             event_box.connect('button-press-event', self.on_cal_cell_click, date_str)
@@ -596,6 +778,32 @@ class TodoTrayApp:
             self.cal_panel.hide()
             self.cal_panel.set_no_show_all(True)
             self.window.resize(WIDTH_NORMAL, WINDOW_HEIGHT)
+
+    # --- 영양제 뷰 토글 ---
+
+    def on_toggle_supplement_view(self, widget):
+        self.supp_visible = not self.supp_visible
+        if self.supp_visible:
+            self.todo_container.hide()
+            self.todo_container.set_no_show_all(True)
+            self.supp_container.set_no_show_all(False)
+            self.supp_container.show_all()
+            self.supp_toggle_btn.get_style_context().remove_class('cal-toggle')
+            self.supp_toggle_btn.get_style_context().add_class('supp-toggle-active')
+            self.refresh_supp_checklist()
+            self.refresh_supp_list()
+            self.refresh_supp_missed()
+        else:
+            self.supp_container.hide()
+            self.supp_container.set_no_show_all(True)
+            self.todo_container.set_no_show_all(False)
+            self.todo_container.show_all()
+            self.supp_toggle_btn.get_style_context().remove_class('supp-toggle-active')
+            self.supp_toggle_btn.get_style_context().add_class('cal-toggle')
+        if self.cal_visible:
+            self.build_calendar_grid()
+        target_w = WIDTH_WITH_CAL if self.cal_visible else WIDTH_NORMAL
+        GLib.idle_add(self.window.resize, target_w, WINDOW_HEIGHT)
 
     # --- 비밀번호 ---
 
@@ -716,11 +924,9 @@ class TodoTrayApp:
             todo = todos[idx]
             today = get_today()
             today_todos = self.data['todos_by_date'].setdefault(today, [])
-            # 중복 방지: 같은 텍스트가 이미 오늘에 있으면 추가하지 않음
             if any(t['text'] == todo['text'] for t in today_todos):
                 return
             today_todos.append({'text': todo['text'], 'completed': False, 'daily': False})
-            # 원래 날짜에서 완료 처리
             todo['completed'] = True
             save_data(self.data)
             self.refresh_todo_list()
@@ -782,7 +988,6 @@ class TodoTrayApp:
                     badge.get_style_context().add_class('daily-badge')
                     row.pack_start(badge, False, False, 0)
 
-                # 편집 버튼
                 edit_btn = Gtk.Button(label='\u270E')
                 edit_btn.get_style_context().add_class('edit-btn')
                 edit_btn.set_relief(Gtk.ReliefStyle.NONE)
@@ -790,7 +995,6 @@ class TodoTrayApp:
                 edit_btn.connect('clicked', self.on_edit_todo, i)
                 row.pack_start(edit_btn, False, False, 0)
 
-                # 삭제 버튼
                 del_btn = Gtk.Button(label='\u2715')
                 del_btn.get_style_context().add_class('delete-btn')
                 del_btn.set_relief(Gtk.ReliefStyle.NONE)
@@ -832,6 +1036,237 @@ class TodoTrayApp:
                 row.pack_start(db, False, False, 0)
                 self.daily_box.pack_start(row, False, False, 0)
         self.daily_box.show_all()
+
+    # --- 영양제 ---
+
+    def get_today_supp_checks(self):
+        return self.data['supplement_checks'].get(get_today(), [])
+
+    def refresh_supp_checklist(self):
+        for child in self.supp_check_box.get_children():
+            self.supp_check_box.remove(child)
+
+        all_supplements = self.data.get('supplements', [])
+        if self.supp_filter != 'all':
+            supplements = [s for s in all_supplements if s['slot'].startswith(self.supp_filter)]
+        else:
+            supplements = all_supplements
+        if not supplements:
+            empty = Gtk.Label(label='아래 영양제 관리에서 등록해보세요!' if not all_supplements else '해당 시간대 영양제가 없습니다.')
+            empty.get_style_context().add_class('hint-label')
+            empty.set_margin_top(16)
+            empty.set_margin_bottom(16)
+            self.supp_check_box.pack_start(empty, False, False, 0)
+        else:
+            groups = {}
+            for supp in supplements:
+                groups.setdefault(supp['slot'], []).append(supp)
+
+            today_checks = self.get_today_supp_checks()
+
+            for slot in SLOT_ORDER:
+                if slot not in groups:
+                    continue
+                header = Gtk.Label()
+                header.set_markup(f'<b>{SLOT_LABELS[slot]}</b>')
+                header.get_style_context().add_class('supp-group-header')
+                header.set_halign(Gtk.Align.START)
+                header.set_margin_top(6)
+                self.supp_check_box.pack_start(header, False, False, 0)
+
+                for supp in groups[slot]:
+                    row = Gtk.Box(spacing=8)
+                    row.set_margin_top(2)
+                    row.set_margin_bottom(2)
+                    row.set_margin_start(8)
+
+                    is_checked = supp['id'] in today_checks
+                    check = Gtk.CheckButton()
+                    check.set_active(is_checked)
+                    check.connect('toggled', self.on_toggle_supp_check, supp['id'])
+                    row.pack_start(check, False, False, 0)
+
+                    name_lbl = Gtk.Label(label=supp['name'])
+                    name_lbl.set_halign(Gtk.Align.START)
+                    name_lbl.set_hexpand(True)
+                    name_lbl.get_style_context().add_class('todo-text')
+                    if is_checked:
+                        esc = GLib.markup_escape_text(supp['name'])
+                        name_lbl.set_markup(f'<s><span foreground="#666">{esc}</span></s>')
+                    row.pack_start(name_lbl, True, True, 0)
+
+                    self.supp_check_box.pack_start(row, False, False, 0)
+
+        # 진행률 (항상 전체 기준)
+        total = len(all_supplements)
+        today_checks = self.get_today_supp_checks()
+        checked = sum(1 for s in all_supplements if s['id'] in today_checks)
+        self.supp_progress_label.set_text(f'복용: {checked}/{total}')
+        self.supp_progress_bar.set_fraction(checked / total if total > 0 else 0)
+
+        self.supp_check_box.show_all()
+
+    def refresh_supp_list(self):
+        for child in self.supp_list_box.get_children():
+            self.supp_list_box.remove(child)
+
+        supplements = self.data.get('supplements', [])
+        if not supplements:
+            e = Gtk.Label(label='등록된 영양제가 없습니다.')
+            e.get_style_context().add_class('hint-label')
+            e.set_margin_top(8)
+            e.set_margin_bottom(8)
+            self.supp_list_box.pack_start(e, False, False, 0)
+        else:
+            sorted_supps = sorted(supplements, key=lambda s: SLOT_ORDER.index(s['slot']) if s['slot'] in SLOT_ORDER else 99)
+            for supp in sorted_supps:
+                row = Gtk.Box(spacing=8)
+                row.set_margin_top(2)
+                row.set_margin_bottom(2)
+                lbl = Gtk.Label(label=supp['name'])
+                lbl.set_halign(Gtk.Align.START)
+                lbl.set_hexpand(True)
+                row.pack_start(lbl, True, True, 0)
+
+                badge = Gtk.Label(label=SLOT_LABELS.get(supp['slot'], supp['slot']))
+                badge.get_style_context().add_class('supp-slot-badge')
+                row.pack_start(badge, False, False, 0)
+
+                db = Gtk.Button(label='\u2715')
+                db.get_style_context().add_class('delete-btn')
+                db.set_relief(Gtk.ReliefStyle.NONE)
+                db.connect('clicked', self.on_delete_supplement, supp['id'])
+                row.pack_start(db, False, False, 0)
+
+                self.supp_list_box.pack_start(row, False, False, 0)
+        self.supp_list_box.show_all()
+
+    def on_add_supplement(self, widget):
+        name = self.supp_name_entry.get_text().strip()
+        if not name:
+            return
+        slot = self.supp_slot_combo.get_active_id()
+        if not slot:
+            slot = 'morning-after'
+        supp_id = int(datetime.now().timestamp() * 1000)
+        self.data['supplements'].append({
+            'id': supp_id,
+            'name': name,
+            'slot': slot,
+        })
+        save_data(self.data)
+        GLib.idle_add(self._clear_entry, self.supp_name_entry)
+        self.refresh_supp_checklist()
+        self.refresh_supp_list()
+
+    def on_delete_supplement(self, widget, supp_id):
+        self.data['supplements'] = [s for s in self.data['supplements'] if s['id'] != supp_id]
+        for date_checks in self.data['supplement_checks'].values():
+            if supp_id in date_checks:
+                date_checks.remove(supp_id)
+        save_data(self.data)
+        self.refresh_supp_checklist()
+        self.refresh_supp_list()
+
+    def on_toggle_supp_check(self, widget, supp_id):
+        today = get_today()
+        checks = self.data['supplement_checks'].setdefault(today, [])
+        if supp_id in checks:
+            checks.remove(supp_id)
+        else:
+            checks.append(supp_id)
+        save_data(self.data)
+        self.refresh_supp_checklist()
+
+    def refresh_supp_missed(self):
+        for child in self.supp_missed_box.get_children():
+            self.supp_missed_box.remove(child)
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        supplements = self.data.get('supplements', [])
+        yesterday_checks = self.data['supplement_checks'].get(yesterday, [])
+        missed = [s for s in supplements if s['id'] not in yesterday_checks]
+
+        if not missed:
+            self.supp_missed_card.hide()
+            return
+
+        self.supp_missed_card.show()
+
+        title = Gtk.Label(label='어제 안 드신 영양제')
+        title.get_style_context().add_class('supp-missed-title')
+        title.set_halign(Gtk.Align.START)
+        self.supp_missed_box.pack_start(title, False, False, 0)
+
+        names = ', '.join(s['name'] for s in missed[:3])
+        if len(missed) > 3:
+            names += f' 외 {len(missed) - 3}개'
+        msg = Gtk.Label()
+        msg.set_markup(f'<span foreground="#e8a838">어제 {GLib.markup_escape_text(names)}을(를) 안 드셨네요.\n꼭 챙겨 드세요!</span>')
+        msg.set_halign(Gtk.Align.START)
+        msg.set_line_wrap(True)
+        msg.set_size_request(340, -1)
+        self.supp_missed_box.pack_start(msg, False, False, 4)
+
+        sorted_missed = sorted(missed, key=lambda s: SLOT_ORDER.index(s['slot']) if s['slot'] in SLOT_ORDER else 99)
+        for supp in sorted_missed:
+            row = Gtk.Box(spacing=8)
+            row.set_margin_top(2)
+            row.set_margin_bottom(2)
+            row.set_margin_start(4)
+
+            lbl = Gtk.Label(label=f'{supp["name"]}')
+            lbl.set_halign(Gtk.Align.START)
+            lbl.set_hexpand(True)
+            lbl.get_style_context().add_class('todo-text')
+            row.pack_start(lbl, True, True, 0)
+
+            badge = Gtk.Label(label=SLOT_LABELS.get(supp['slot'], ''))
+            badge.get_style_context().add_class('supp-slot-badge')
+            row.pack_start(badge, False, False, 0)
+
+            btn = Gtk.Button(label='먹었어요')
+            btn.get_style_context().add_class('supp-taken-btn')
+            btn.set_relief(Gtk.ReliefStyle.NONE)
+            btn.set_tooltip_text('어제 실제로 먹었으면 체크')
+            btn.connect('clicked', self.on_mark_supp_yesterday, supp['id'])
+            row.pack_start(btn, False, False, 0)
+
+            self.supp_missed_box.pack_start(row, False, False, 0)
+
+        self.supp_missed_box.show_all()
+
+    def on_mark_supp_yesterday(self, widget, supp_id):
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        checks = self.data['supplement_checks'].setdefault(yesterday, [])
+        if supp_id not in checks:
+            checks.append(supp_id)
+        save_data(self.data)
+        self.refresh_supp_missed()
+
+    def on_supp_filter(self, widget, filter_val):
+        self.supp_filter = filter_val
+        for fval, btn in self.supp_filter_btns.items():
+            btn.get_style_context().remove_class('supp-filter-btn-active')
+            btn.get_style_context().remove_class('supp-filter-btn')
+            if fval == filter_val:
+                btn.get_style_context().add_class('supp-filter-btn-active')
+            else:
+                btn.get_style_context().add_class('supp-filter-btn')
+        self.refresh_supp_checklist()
+
+    def on_tray_supp_toggle(self, widget, supp_id):
+        today = get_today()
+        checks = self.data['supplement_checks'].setdefault(today, [])
+        if supp_id in checks:
+            checks.remove(supp_id)
+        else:
+            checks.append(supp_id)
+        save_data(self.data)
+        self.update_indicator_label()
+        self.build_tray_menu()
+        if self.window and self.window.get_visible() and self.supp_visible:
+            self.refresh_supp_checklist()
 
     # --- 이벤트 핸들러 ---
 
@@ -925,7 +1360,6 @@ class TodoTrayApp:
         if not text:
             return
         self.data['daily_tasks'].append({'text': text})
-        # 오늘 할일 목록에도 즉시 추가
         today = get_today()
         today_todos = self.data['todos_by_date'].get(today, [])
         today_todos.append({'text': text, 'completed': False, 'daily': True})
@@ -949,11 +1383,18 @@ class TodoTrayApp:
         self.refresh_todo_list()
         self.refresh_daily_list()
         self.refresh_overdue_list()
+        self.refresh_supp_checklist()
+        self.refresh_supp_list()
+        self.refresh_supp_missed()
         if self.cal_visible:
             self.build_calendar_grid()
         self.window.show_all()
         if not self.cal_visible:
             self.cal_panel.hide()
+        if not self.supp_visible:
+            self.supp_container.hide()
+        else:
+            self.todo_container.hide()
         self.window.present()
 
     def on_window_close(self, widget, event):
@@ -980,6 +1421,10 @@ def main():
     app.window.show_all()
     if not app.cal_visible:
         app.cal_panel.hide()
+    if not app.supp_visible:
+        app.supp_container.hide()
+    else:
+        app.todo_container.hide()
     app.window.present()
     Gtk.main()
 

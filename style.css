@@ -40,6 +40,40 @@ header .subtitle {
   margin-top: 4px;
 }
 
+/* 메인 탭 */
+.main-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  justify-content: center;
+}
+
+.main-tab {
+  padding: 9px 28px;
+  background: #f0f2f5;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+
+.main-tab:hover {
+  background: #e4e6ea;
+}
+
+.main-tab.active {
+  background: #4a6cf7;
+  color: #fff;
+  border-color: #4a6cf7;
+}
+
+.tab-content.hidden {
+  display: none;
+}
+
 /* 입력 폼 */
 .todo-form, .daily-form {
   display: flex;
@@ -108,12 +142,12 @@ header .subtitle {
 }
 
 /* 할일 목록 */
-#todo-list, #daily-list {
+#todo-list, #daily-list, #supp-list {
   list-style: none;
   min-height: 40px;
 }
 
-#todo-list li, #daily-list li {
+#todo-list li, #daily-list li, #supp-list li {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -122,11 +156,11 @@ header .subtitle {
   transition: opacity 0.3s, background 0.2s;
 }
 
-#todo-list li:last-child, #daily-list li:last-child {
+#todo-list li:last-child, #daily-list li:last-child, #supp-list li:last-child {
   border-bottom: none;
 }
 
-#todo-list li:hover, #daily-list li:hover {
+#todo-list li:hover, #daily-list li:hover, #supp-list li:hover {
   background: #fafbfc;
   border-radius: 8px;
 }
@@ -227,6 +261,11 @@ header .subtitle {
   transition: width 0.4s ease;
 }
 
+/* 영양제 진행률 (초록) */
+.supp-fill {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
 /* 매일 고정 할일 섹션 */
 .daily-section {
   margin-top: 24px;
@@ -285,6 +324,134 @@ header .subtitle {
   margin-top: 12px;
 }
 
+/* 영양제 체크리스트 */
+.supp-group {
+  margin-bottom: 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.supp-group-header {
+  padding: 10px 16px;
+  background: #f8f9fa;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #555;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.supp-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f2f5;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.supp-item:last-child {
+  border-bottom: none;
+}
+
+.supp-item:hover {
+  background: #fafbfc;
+}
+
+.supp-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #10b981;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.supp-name {
+  flex: 1;
+  font-size: 0.95rem;
+  color: #333;
+  transition: all 0.3s;
+}
+
+.supp-item.checked .supp-name {
+  text-decoration: line-through;
+  color: #bbb;
+}
+
+/* 영양제 등록 폼 */
+.supp-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.supp-form input {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.supp-form input:focus {
+  border-color: #10b981;
+}
+
+.supp-form select {
+  padding: 10px 12px;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  outline: none;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.supp-form select:focus {
+  border-color: #10b981;
+}
+
+.supp-form button {
+  padding: 12px 20px;
+  background: #10b981;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.supp-form button:hover {
+  background: #059669;
+}
+
+/* 영양제 슬롯 뱃지 */
+.supp-slot-badge {
+  font-size: 0.7rem;
+  background: #ecfdf5;
+  color: #059669;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 /* 반응형 */
 @media (max-width: 480px) {
   body {
@@ -305,6 +472,25 @@ header .subtitle {
   }
 
   .todo-form button, .daily-form button {
+    padding: 10px 16px;
+  }
+
+  .main-tab {
+    padding: 8px 20px;
+    font-size: 0.85rem;
+  }
+
+  .supp-form input {
+    min-width: 100px;
+    padding: 10px 14px;
+  }
+
+  .supp-form select {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  .supp-form button {
     padding: 10px 16px;
   }
 }

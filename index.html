@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>오늘의 할일 체크리스트</title>
+  <title>오늘의 체크리스트</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#4a6cf7">
   <link rel="icon" type="image/png" sizes="48x48" href="icon-48.png">
@@ -14,42 +14,84 @@
   <div class="container">
     <header>
       <h1 id="today-date"></h1>
-      <p class="subtitle">오늘의 할일 체크리스트</p>
+      <div class="main-tabs">
+        <button class="main-tab active" data-tab="todo">할일</button>
+        <button class="main-tab" data-tab="supplement">영양제</button>
+      </div>
     </header>
 
-    <form id="todo-form" class="todo-form">
-      <input type="text" id="todo-input" placeholder="할일을 입력하세요..." autocomplete="off">
-      <button type="submit" id="add-btn">추가</button>
-    </form>
+    <!-- 할일 탭 -->
+    <div id="tab-todo" class="tab-content">
+      <form id="todo-form" class="todo-form">
+        <input type="text" id="todo-input" placeholder="할일을 입력하세요..." autocomplete="off">
+        <button type="submit" id="add-btn">추가</button>
+      </form>
 
-    <div class="filters">
-      <button class="filter-btn active" data-filter="all">전체</button>
-      <button class="filter-btn" data-filter="active">진행중</button>
-      <button class="filter-btn" data-filter="completed">완료</button>
-    </div>
+      <div class="filters">
+        <button class="filter-btn active" data-filter="all">전체</button>
+        <button class="filter-btn" data-filter="active">진행중</button>
+        <button class="filter-btn" data-filter="completed">완료</button>
+      </div>
 
-    <ul id="todo-list"></ul>
+      <ul id="todo-list"></ul>
 
-    <div id="progress" class="progress">
-      <div class="progress-text">완료: 0/0</div>
-      <div class="progress-bar">
-        <div class="progress-fill"></div>
+      <div id="progress" class="progress">
+        <div class="progress-text">완료: 0/0</div>
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- 매일 고정 할일 관리 -->
+      <div class="daily-section">
+        <button id="daily-toggle" class="daily-toggle">
+          <span class="daily-toggle-icon">&#9662;</span>
+          매일 고정 할일 관리
+        </button>
+        <div id="daily-panel" class="daily-panel hidden">
+          <form id="daily-form" class="daily-form">
+            <input type="text" id="daily-input" placeholder="매일 반복할 할일..." autocomplete="off">
+            <button type="submit">등록</button>
+          </form>
+          <ul id="daily-list"></ul>
+          <p class="daily-hint">여기 등록된 할일은 매일 자동으로 체크리스트에 추가됩니다.</p>
+        </div>
       </div>
     </div>
 
-    <!-- 매일 고정 할일 관리 -->
-    <div class="daily-section">
-      <button id="daily-toggle" class="daily-toggle">
-        <span class="daily-toggle-icon">&#9662;</span>
-        매일 고정 할일 관리
-      </button>
-      <div id="daily-panel" class="daily-panel hidden">
-        <form id="daily-form" class="daily-form">
-          <input type="text" id="daily-input" placeholder="매일 반복할 할일..." autocomplete="off">
-          <button type="submit">등록</button>
-        </form>
-        <ul id="daily-list"></ul>
-        <p class="daily-hint">여기 등록된 할일은 매일 자동으로 체크리스트에 추가됩니다.</p>
+    <!-- 영양제 탭 -->
+    <div id="tab-supplement" class="tab-content hidden">
+      <div id="supp-checklist"></div>
+
+      <div id="supp-progress" class="progress">
+        <div class="progress-text">복용: 0/0</div>
+        <div class="progress-bar">
+          <div class="progress-fill supp-fill"></div>
+        </div>
+      </div>
+
+      <div class="daily-section">
+        <button id="supp-toggle" class="daily-toggle">
+          <span class="daily-toggle-icon">&#9662;</span>
+          영양제 관리
+        </button>
+        <div id="supp-panel" class="daily-panel hidden">
+          <form id="supp-form" class="supp-form">
+            <input type="text" id="supp-name" placeholder="영양제 이름..." autocomplete="off">
+            <select id="supp-timing">
+              <option value="empty">공복</option>
+              <option value="morning-before">아침 식전</option>
+              <option value="morning-after" selected>아침 식후</option>
+              <option value="lunch-before">점심 식전</option>
+              <option value="lunch-after">점심 식후</option>
+              <option value="dinner-before">저녁 식전</option>
+              <option value="dinner-after">저녁 식후</option>
+            </select>
+            <button type="submit">등록</button>
+          </form>
+          <ul id="supp-list"></ul>
+          <p class="daily-hint">등록된 영양제는 매일 체크리스트에 표시됩니다.</p>
+        </div>
       </div>
     </div>
   </div>
