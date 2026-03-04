@@ -319,6 +319,7 @@ class TodoTrayApp:
         self.input_entry = Gtk.Entry()
         self.input_entry.set_placeholder_text('할일을 입력하세요...')
         self.input_entry.connect('activate', self.on_add_todo)
+        self.input_entry.connect('key-press-event', self.on_entry_key_press)
         input_box.pack_start(self.input_entry, True, True, 0)
         add_btn = Gtk.Button(label='추가')
         add_btn.get_style_context().add_class('add-btn')
@@ -351,6 +352,7 @@ class TodoTrayApp:
         self.daily_entry = Gtk.Entry()
         self.daily_entry.set_placeholder_text('매일 반복할 할일...')
         self.daily_entry.connect('activate', self.on_add_daily)
+        self.daily_entry.connect('key-press-event', self.on_entry_key_press)
         di_box.pack_start(self.daily_entry, True, True, 0)
         dab = Gtk.Button(label='등록')
         dab.get_style_context().add_class('daily-add-btn')
@@ -829,6 +831,11 @@ class TodoTrayApp:
 
     # --- 이벤트 핸들러 ---
 
+    def on_entry_key_press(self, widget, event):
+        if event.keyval == Gdk.KEY_space:
+            widget.reset_im_context()
+        return False
+
     def on_edit_todo(self, widget, idx):
         todos = self.get_current_todos()
         if not (0 <= idx < len(todos)):
@@ -844,6 +851,7 @@ class TodoTrayApp:
         entry = Gtk.Entry()
         entry.set_text(todos[idx]['text'])
         entry.connect('activate', lambda w: dlg.response(Gtk.ResponseType.OK))
+        entry.connect('key-press-event', self.on_entry_key_press)
         box.pack_start(entry, False, False, 0)
         bb = Gtk.Box(spacing=8)
         bb.set_halign(Gtk.Align.END)
